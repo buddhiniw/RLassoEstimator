@@ -1,4 +1,4 @@
-#  This is a code to do Lasso on realestate data using glmnet package
+#  This is a code to do Lasso on real-estate data using glmnet package
 # 
 #  Reference - "Fitting the Lasso Estimator using R" by Finch, W. Holmes; Finch, Maria E. Hernandez
 #  Practical Assessment, Research & Evaluation, 
@@ -20,6 +20,8 @@
 #############################
 library(glmnet) # Package to fit ridge/lasso/elastic net models
 library(selectiveInference)
+
+rm(list=ls())
 
 
 ###################################################################################
@@ -51,27 +53,39 @@ inFileName=args[1]
 #dependent variables.#
 dataIn <- read.csv(inFileName, header=T)
 
-# Standardize the variables prior to conducting data analysis
-# because the penalization will then treat different scale explanatory variables 
+# Standardize the data prior to fitting the model
+# Then the penalization will treat different scale explanatory variables 
 # on a more equal footing
-dataIn.z <- scale(dataIn, center=TRUE, scale=TRUE)
+dataIn.scaled <- scale(dataIn, center=TRUE, scale=TRUE)
 
 # The last line of the loaded data set should be removed from the model to get the training set. 
 # The last line contains data to test the resulting model.
-dataIn.z.train <- dataIn.z[1:(nrow(dataIn.z)-1),]
+dataIn.scaled.train <- dataIn.scaled[1:(nrow(dataIn.scaled)-1),]
 
-# glmnet() requires x to be in matrix class, so saving out 
-# the separate variables to be used as Y and X.
-x <- as.matrix(dataIn.z.train[,])
+# Create the X and Y regression matrices
+x <- as.matrix(dataIn.scaled.train[,-1])
 #y <- is.na(dataIn[[1]])
-y <- dataIn.z.train[,1]
+y <- as.matrix(dataIn.scaled.train[,1])
 
-# Fit LASSO by glmnet(y=, x=). Gaussian is default, but other families are available  
-# Function produces series of fits for many values of lambda.  
+# Fit LASSO using glmnet(y=, x=). Gaussian model is default. alpha=1 for lasso only.
+# Set standardize = FALSE because the variables were standardized in the begining of the 
+# analysis using "scale" function.
+# Function produces series of fits for many values of lambda. 
+fit.glmnet.lasso <- glmnet(x,y,alpha=1,standardize=FALSE)
+plot(fit.glmnet.lasso, xvar="lambda")
 
-fit <- glmnet(x,y,standardize=TRUE) #contains all the relevant information of the fitted model
-plot(fit)
+# Perform nfolds=sample size cross-validation  (leave-one-out-cross-validation)
+# runs glmnet nfolds+1 times; the first to get the lambda sequence, and then the
+# remainder to compute the fit with each of the folds omitted. 
+# The error is accumulated, and the average error and standard deviation over the folds is computed
+fit.glmnet.lasso.cv=cv.glmnet(x,y,alpha=1,nfolds = length(y),type.measure="mse") 
+plot(fit.glmnet.lasso.cv)
 
+# the λ at which the minimal MSE is achieved
+print(fit.glmnet.lasso.cv$lambda.min)
+
+# get the model coefficients at optimal lambda (lambda min)
+coef(fit.glmnet.lasso.cv,s="lambda.min")
 
 #dataIn.z.lasso.cv <- cv.glmnet(x,y, type.measure="mse", nfolds=10) 
 #plot(dataIn.z.lasso.cv)
