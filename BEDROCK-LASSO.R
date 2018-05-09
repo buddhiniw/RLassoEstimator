@@ -3,7 +3,7 @@
 #  Reference - "Fitting the Lasso Estimator using R" by Finch, W. Holmes; Finch, Maria E. Hernandez
 #  Practical Assessment, Research & Evaluation, 
 #  v21 n7 May 2016
-#  Code updates by B. Waidyawansa (04/30/2018)
+#  Author by B. Waidyawansa (04/30/2018)
 # 
 #  Gaussian Assumption in Lasso Method
 #  Command line run example
@@ -56,22 +56,31 @@ dataIn <- read.csv(inFileName, header=T)
 # Standardize the data prior to fitting the model
 # Then the penalization will treat different scale explanatory variables 
 # on a more equal footing
-dataIn.scaled <- scale(dataIn, center=TRUE, scale=TRUE)
+dataIn.scaled <- as.data.frame(scale(dataIn, center=TRUE, scale=TRUE))
+#dataIn.scaled <- dataIn
 
 # The last line of the loaded data set should be removed from the model to get the training set. 
-# The last line contains data to test the resulting model.
 dataIn.scaled.train <- dataIn.scaled[1:(nrow(dataIn.scaled)-1),]
+# The last line contains data to test the resulting model.
+dataIn.scaled.test <-dataIn[nrow(dataIn),-1]
+#dataIn.scaled.test <-dataIn.scaled[nrow(dataIn.scaled),-1]
+
+x.test <-as.matrix(dataIn.scaled.test)
+
+#x.test <-(dataIn.scaled.test)
 
 # Create the X and Y regression matrices
 x <- as.matrix(dataIn.scaled.train[,-1])
 #y <- is.na(dataIn[[1]])
 y <- as.matrix(dataIn.scaled.train[,1])
 
+
+
 # Fit LASSO using glmnet(y=, x=). Gaussian model is default. alpha=1 for lasso only.
 # Set standardize = FALSE because the variables were standardized in the begining of the 
 # analysis using "scale" function.
 # Function produces series of fits for many values of lambda. 
-fit.glmnet.lasso <- glmnet(x,y,alpha=1,standardize=FALSE)
+fit.glmnet.lasso <- glmnet(x,y,alpha=1,standardize=F)
 plot(fit.glmnet.lasso, xvar="lambda")
 
 # Perform nfolds=sample size cross-validation  (leave-one-out-cross-validation)
@@ -80,12 +89,40 @@ plot(fit.glmnet.lasso, xvar="lambda")
 # The error is accumulated, and the average error and standard deviation over the folds is computed
 fit.glmnet.lasso.cv=cv.glmnet(x,y,alpha=1,nfolds = length(y),type.measure="mse") 
 plot(fit.glmnet.lasso.cv)
+lasso.glmnet = fit.glmnet.lasso.cv$glmnet.fit
 
 # the λ at which the minimal MSE is achieved
-print(fit.glmnet.lasso.cv$lambda.min)
+lambda.min = fit.glmnet.lasso.cv$lambda.min
+print(lambda.min)
+#print(min(fit.glmnet.lasso.cv$lambda))
 
 # get the model coefficients at optimal lambda (lambda min)
 coef(fit.glmnet.lasso.cv,s="lambda.min")
+
+# make predictions from the cross-validated glmnet model
+y.hat.glmnet = predict(fit.glmnet.lasso.cv,x.test,s=lambda.min)
+beta.hat.glmnet = coef(fit.glmnet.lasso.cv,s=lambda.min)
+
+
+# In the following section, we are going to perform simple linear regression
+# on the data set to cross-compare the model coefficients with the lasso results.
+
+# The formula used for simple linear regression model 
+y.name=names(dataIn)[1]
+x.names=names(dataIn)[-1]
+formula.lm = paste(y.name,paste0(x.names,collapse=' + '),sep=' ~ ')
+fit.lm <- lm(formula.lm, data=dataIn.scaled.train )
+y.hat.lm <- predict(fit.lm,interval="predict")
+
+#lm.formula <- y.name,paste0(x.names[koala.min.Xs],collapse=' + '),sep=' ~ '
+
+# koala.min.formula=paste(wombat.y.name,paste0(wombat.x.names[koala.min.Xs],collapse=' + '),sep=' ~ ')
+# koala.min.lm=lm(koala.min.formula,data=df)
+# koala.min.lm.predict=predict(koala.min.lm,as.data.frame(wombat.x.predict),interval="predict") #produces predicted values, obtained by evaluating the regression function in the data frame
+# #plot(koala.min.lm)
+
+
+
 
 #dataIn.z.lasso.cv <- cv.glmnet(x,y, type.measure="mse", nfolds=10) 
 #plot(dataIn.z.lasso.cv)
@@ -95,8 +132,7 @@ coef(fit.glmnet.lasso.cv,s="lambda.min")
 # # Do folds=sample size cross-validation
 
 
-# what is going to be predicted
-#predictY=is.na(dataIn[[1]])
+
 # the original data is called "wombat"
 #wombat=as.matrix(dataIn)
 
