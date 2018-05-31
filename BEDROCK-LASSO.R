@@ -1,20 +1,22 @@
 #############################
-#  This code uses Gaussian linear regression with Lasso regularization to predict
+#  This code uses Gaussian linear regression with Elastic Net regularization to predict
 #  real estate selling prices utilizing the glment package in R. 
 # 
 #  Reference analysis - "Fitting the Lasso Estimator using R" by Finch, W. Holmes; Finch, Maria E. Hernandez
 #  Practical Assessment, Research & Evaluation, 
 #  v21 n7 May 2016
+#  Reference methodolo
 #  
 #  R script author - B. Waidyawansa (04/30/2018)
 #############################
 
 
 # Load required packages
-library(caret)
+library(caret) # Package to traint the model
 library(glmnet) # Package to fit ridge/lasso/elastic net models
-library(selectiveInference)
-library(DMwR)
+#library(selectiveInference)
+#library(DMwR)
+library(boot) # Package to do bootstrap error estimates
 
 # Clean up the directory
 rm(list=ls())
@@ -41,20 +43,23 @@ inFileName=args[1]
 # Read the data from a .dat file, print the data to be sure that itwas read in correctly
 dataIn <- read.csv(inFileName, header=T)
 
+###################################################################
 # Standardize the predictor(x) variables and response(y) variable
-#
+###################################################################
 # Standarizing/scaling the predictor variables prior to fitting the model will ensure
-# the lasso penalization will treat different scale explanatory variables on a more equal footing
-# But only continuos predictors needs to be standardized.
+# the lasso penalization will treat different scale explanatory variables on a more 
+# equal footing. 
+# BUT only continuos predictors needs to be standardized.
 # DONOT scale factor variables (using 1/0) used for yes/no situations.
 #
-# We cannot use the preProcess option in the caret package to do the scaling because the dataset
-# contains factor variables.
+# NOTE - We cannot use the preProcess option in the caret package to do the scaling 
+# because the real estate datasets contain factor variables.
 #
-#
+###############################
+# Scale x (predictor) variables
+###############################
 # Get x variables (including the data-to-be-predicted row)
 dataIn.x <- dataIn[,-1]
-
 
 # Identify columns with categorical data (0/1)
 cat.vars <- apply(dataIn.x,2,function(x) { all(x %in% 0:1) })
@@ -67,7 +72,9 @@ dataIn.continuous.scaled <-scale(dataIn.continuous,center=TRUE, scale=TRUE)
 # Create the scaled x matrix
 x.scaled <- cbind(as.data.frame(dataIn.continuous.scaled),dataIn.catrgorical)
 
-# Scale the responce variable
+###############################
+# Scale y (responce) variable
+###############################
 dataIn.y <- dataIn[1:(nrow(dataIn)-1),1,drop=FALSE]
 dataIn.y.scaled <- scale(dataIn.y,center=TRUE, scale=TRUE)
 y.scaled <- as.data.frame(dataIn.y.scaled)
@@ -76,120 +83,93 @@ y.scaled <- as.data.frame(dataIn.y.scaled)
 x <- as.matrix(x.scaled[1:(nrow(x.scaled)-1),])
 y <- as.matrix(y.scaled)
 
+###################################################################
+# Get the scaled test data set.
+# This program assumes the test data are in the last row of the input
+# dataset
+###################################################################
+dataIn.scaled.test <- x.scaled[nrow(x.scaled),]
+x.test <-as.matrix(dataIn.scaled.test)
 
-# Get the to-be-predicted data set assuming they are the last row of the original data set
-dataIn.scaled.predict <- x.scaled[nrow(x.scaled),]
-x.predict <-as.matrix(dataIn.scaled.predict)
 
+###################################################################
+# Use caret package to train the glmnet model to get the 
+# best parameter values for alpha and lambda
+###################################################################
 
-# cross-validate using n folds where n = number of entries
+# Set alpha and lambda grid
+lambda.grid <- 10^seq(2,-2,length=100)
+alpha.grid <- seq(0,1,length=10)
 
-# create the original dataset with scaled data
+# Setup leave-one-out-cross-validation method for train function. 
+train.control = trainControl(method = "LOOCV", number = 10, repeats=1)
+
+# Setup serach grid for alpha and lambda
+search.grid <- expand.grid(.alpha = alpha.grid, .lambda = lambda.grid)
+
+# Full dataset after scaling
 dataIn.scaled <- cbind(y,x)
-# remove NA entries
+# Remove NA entries
 dataIn.scaled <- na.omit(dataIn.scaled)
 
-# Use caret package to train the glmnet model to get the best parameter values for alpha and lambda
-set.seed(42)
-cv_n = trainControl(method = "LOOCV", number = 5)
+#The formula used for simple linear regression model 
+y.name=names(dataIn)[1]
+x.names=names(dataIn)[-1]
+formula.lm = paste(y.name,paste0(x.names,collapse=' + '),sep=' ~ ')
 
-fit_elnet = train(
-    SellingPrice ~ ., data = dataIn.scaled,
+# perfrom cross-validated forecasting of SellingPrice using all features
+set.seed(42)
+train.elnet = train(
+    x.scaled[1:(nrow(x.scaled)-1),], y.scaled[[1]],
     method = "glmnet",
-    trControl = cv_n,
-    tuneLength = 10
+    tuneGrid = search.grid,
+    trControl = train.control
 )
 
-fit_elnet
 
-#Caret.Fit.BestResult(fit_elnet)
+# Plot CV performance
+plot(train.elnet)
 
-# Fit elastic net with 0< alpha <1
-# First do a grid search to find the best alpha
-a <- seq(0.1, 0.9, 0.05)
-search <- foreach(i = a, .combine = rbind) %dopar% {
-    cv <- cv.glmnet(x, y, family = "gaussian", nfold = length(y), type.measure = "mse", paralle = TRUE, alpha = i)
-    data.frame(cvm = cv$cvm[cv$lambda == cv$lambda.min], lambda.min = cv$lambda.min, alpha = i)
-}
-cv3 <- search[search$cvm == min(search$cvm), ]
-# Fit LASSO using glmnet(y=, x=). Use alpha=1 for lasso only.
-# Set standardize = FALSE because the predictor variables were standardized in the begining of the 
-# analysis using "scale" function. Intercept =FALSE because responce variables(y) is also scaled
+# Retrun best tuning parameters lambda and alpha
+best.alpha <- train.elnet$bestTune$alpha
+best.lambda <- train.elnet$bestTune$lambda
 
+# Get the best model (model with best alpha)
+final.glmnet.model <- train.elnet$finalModel
 
-fit.glmnet.lasso <- glmnet(x,y,family="gaussian",lambda=cv3$lambda.min, alpha = cv3$alpha,standardize=FALSE,intercept = FALSE)
-plot(fit.glmnet.lasso, xvar="lambda")
-#w<-(abs(coef(fit.glmnet.lasso.t)[-1])+1/nrow(x.scaled))^(-1)
-#fit.glmnet.lasso=glmnet(x,y,penalty.factor = w)
-#plot(fit.glmnet.lasso, xvar="lambda")
+# Get the model coefficients at optimal lambda (lambda min)
+beta.hat.glmnet.scaled <- coef(final.glmnet.model, s=best.lambda)
 
-
-# Perform nfolds=sample size cross-validation  (leave-one-out-cross-validation)
-# runs glmnet nfolds+1 times; the first to get the lambda sequence, and then the
-# remainder to compute the fit with each of the folds omitted. 
-# The error is accumulated, and the average error and standard deviation over the folds is computed
-fit.glmnet.lasso.cv <- cv.glmnet(x,y,alpha=1,nfolds = length(y),type.measure="mse") 
-#grid=10^seq(10,-2,length=100) ##get lambda sequence
-#fit.glmnet.lasso.cv <- cv.glmnet(x,y,alpha=1,nfolds = 10,type.measure="mse",lambda=grid) 
-
-plot(fit.glmnet.lasso.cv)
-lasso.glmnet <- fit.glmnet.lasso.cv$glmnet.fit
-
-# the λ at which the minimum MSE is achieved
-lambda.min <- fit.glmnet.lasso.cv$lambda.min
-#print(lambda.min)
-
-# make predictions from the cross-validated glmnet model using lambda min(optimal lambda)
-y.hat.glmnet.scaled <- predict(fit.glmnet.lasso.cv,x.predict,s="lambda.min")
-# unscale to get the actual magnitude
+###################################################################
+# Make predictions from final model
+###################################################################
+# Make price prediction for test data
+y.hat.glmnet.scaled <- predict(final.glmnet.model,x.test,s=best.lambda)
+# Unscale to get the actual magnitude
 y.hat.glmnet.unscaled <- unscale(y.hat.glmnet.scaled,dataIn.y.scaled)
-# get the model error
-#sigma.glmnet.scaled <- estimateSigma(x,y,intercept = FALSE, standardize = FALSE)$sigmahat
-#sigma.glmnet.unscaled <- unscale(sigma.glmnet.scaled,dataIn.y.scaled)
-sigma.glmnet.scaled <- 9;
-
-# get the model coefficients at optimal lambda (lambda min)
-beta.hat.glmnet.scaled <- predict(fit.glmnet.lasso.cv,s="lambda.min",exact=TRUE,type="coefficients")
-
-# get the regression formula for optimal lambda
-y.name=names(y.scaled)[1]
-x.names=names(x.scaled)
-formula.lasso = paste(y.name,paste0(x.names[which(!beta.hat.glmnet.scaled==0)-1],collapse=' + '),sep=' ~ ')
 
 
-# compute p-values and confidence intervals
-#lasso.inference <- fixedLassoInf(x,y,beta.hat.glmnet.scaled[-1],lambda.min,sigma=sigma.glmnet.scaled)
+###################################################################
+# Estimate starndard errors using bootstrap method
+###################################################################
+# NOTE bootstrapping is only real way to estimate the std. errors 
+# for a penalized regression. BUT it is unclear how meaningful the std. errors are in this case. 
 
+
+test <- function(data, idx){
+    bootstrap.data <- data[idx, ]
+    bootstrap.mod <- train(SellingPrice ~.,
+                      data = bootstrap.data, 
+                      method = "glmnet", 
+                      trControl = trainControl(method = "none"),
+                      tuneGrid = train.elnet$bestTune)
+  
+    as.vector(coef(bootstrap.mod$finalModel, train.elnet$bestTune$lambda))
+}
+
+boot.samples <- boot(dataIn.scaled, test, 100L)
 
 #########################################
-# In the following section, we are going to perform ordinary least squares (OLS) regression
-# on the data set to cross-compare the model coefficients with the lasso results.
-# If n<p then skip this comparision and set N/A for the OLS coefficient column in the
-# section 
 
-no_ols = TRUE
-if (!no_ols){
-  # Get the formula used for simple linear regression model 
-  formula.ols = paste(y.name,paste0(x.names,collapse=' + '),sep=' ~ ')
-
-  # Since the Lasso analysis was done with standardized data, we are going to use
-  # the standardized data as a training set for the OLS too. 
-  dataIn.train <- cbind(y.scaled,x.scaled[1:(nrow(x.scaled)-1),])
-  dataIn.test <-x.scaled[(nrow(x.scaled)),]
-
-  # Make predictions from the simple linear model for comparision
-  mod.ols <- lm(formula.ols, dataIn.train)
-  y.hat.ols <- predict(mod.ols,newdata=dataIn.test,interval="prediction")
-  beta.hat.ols.scaled <- summary(mod.ols)$coefficients
-
-  # Following section performs an anova test to compare the models
-  # For this the models needs to be nested. i.e. same outcome variable and 
-  # model 2 contains all the variables of model 1 plus 2 additional variables
-
-  mod.lasso <- lm(formula.lasso,dataIn.train) 
-  #mod.lm <- lm(formula.ols,dataIn.train) 
-  #anova.compare <- anova(mod.lasso,mod.lm)
-}
-
-source("BEDROCK-HELP-FUNC.R")
-source("BEDROCK-DOC.R")
+#source("BEDROCK-HELP-FUNC.R")
+#source("BEDROCK-DOC.R")
