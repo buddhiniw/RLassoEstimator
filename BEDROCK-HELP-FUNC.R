@@ -6,12 +6,15 @@
 
 library(flextable)
 
+#r2 <- fit$glmnet.fit$dev.ratio[which(fitnet$glmnet.fit$lambda == fitnet$lambda.min)]
+
 # create a FlexTable of Descriptive Statistics ###
 FlexTable.descriptive <- function(datain){
-  dataIn.desc.df <- as.data.frame(describe(datain,num.desc=c("valid.n","mean","sd","min","max"))$Numeric)
-  dataIn.desc.df.t <-t(dataIn.desc.df)
+  data <- as.data.frame(describe(datain,num.desc=c("valid.n","mean","sd","min","max"))$Numeric)
+  data.t <- as.matrix(t(data))
+  data.t <- formatC(data.t, digits = 2, format = "d", flag = "0")
   
-  ftable = FlexTable(dataIn.desc.df.t,header.columns=FALSE,add.rownames = TRUE,
+  ftable = FlexTable(data.t,header.columns=FALSE,add.rownames = TRUE,
                      body.par.props = parRight(),
                      header.text.props = textBold())
   ftable = addHeaderRow( ftable, value = c("", "N", "Mean", "Std Dev", "Min", "Max") )
@@ -19,48 +22,111 @@ FlexTable.descriptive <- function(datain){
   sirt = ftable
 }
 
-# create a FlexTable of coeficients from a Linear Model
-FlexTable.lm.coef <- function(datalm) {
-  print("here")
-  data = as.data.frame( summary(datalm)$coefficients )
-  
-  # get signif codes
-  signif.codes = cut( data[,4]
-                      , breaks = c( -Inf, 0.001, 0.01, 0.05, Inf)
-                      , labels= c("***", "**", "*", "" ) )
-  
+# FlexTable of coefficients from glmnet and ols
+FlexTable.coef <- function(beta.glmnet, beta.lm) {
+  data <- as.matrix(cbind(beta.glmnet,beta.lm[,1:2]))
+
   # format the data values
-  data[, 1] = formatC( data[, 1], digits=3, format = "f")
-  data[, 2] = formatC( data[, 2], digits=3, format = "f")
-  data[, 3] = formatC( data[, 3], digits=3, format = "f")
-  data[, 4] = ifelse( data[, 4] < 0.001, "< 0.001", formatC( data[, 4], digits=5, format = "f"))
-  # add signif codes to data
-  data$Signif = signif.codes
+  data <- formatC(data, digits = 2, format = "f", flag = "0")
   
   # create an empty FlexTable
-  coef_ft = FlexTable( data = data, add.rownames=TRUE
-                       , body.par.props = parRight(), header.text.props = textBold()
-                       , header.columns = T
-  )
+  ftable <- FlexTable(data, header.columns=FALSE,add.rownames = TRUE,
+                     body.par.props = parRight(),
+                     header.text.props = textBold())
+  ftable <- addHeaderRow( ftable, value = c("Predictor", "Elastic Net","Least Squares"), colspan = c(1,1,2) )
+  ftable <- addHeaderRow( ftable, value = c("", "Coefficient","Coefficient","STD error"))
   
-  # center the first column and set text as bold italic
-  coef_ft[,1] = parCenter()
-  coef_ft[,1] = textBoldItalic()
+  ftable <- setFlexTableWidths(ftable,widths = c(1.5, 1.5, 1.5,1.5))
+  ftable
+}
+
+# create flextable of coefficients from enet ith errors from bootstrap
+FlexTable.enet.coef.err <- function(beta.hat.scaled, boot.samples) {
+  capture.output(boot.samples, file = "boot_out.txt")
+  dat <- read.table("boot_out.txt", skip=10)
   
-  # define borders
+  ## replace 0 coef values with N/A to indicate those variables are not selected
+  #dat[dat == 0] <- NA
+  ## Get the coef values and RMSE from bootstrap output
+  df<- as.data.frame(dat)[,c("V4")]
+  ## Set RMSE for NA vaiables NA
+  #df[!complete.cases(df),] <- NA
+
+  data <- as.matrix(cbind(beta.hat.scaled$coefficients, as.matrix(df)))
   
-  coef_ft = setFlexTableBorders( coef_ft
-                                 , inner.vertical = borderNone(), inner.horizontal = borderDotted()
-                                 , outer.vertical = borderNone(), outer.horizontal = borderSolid()
-  )
-  # coef = add
-  coef_ft
+  # format the data values
+  data <- formatC(data, digits = 3, format = "f", flag = "0")
+  
+  # create an empty FlexTable
+  ftable <- FlexTable(data, header.columns=FALSE,add.rownames = TRUE,
+                      body.par.props = parRight(),
+                      header.text.props = textBold())
+  #ftable <- addHeaderRow( ftable, value = c("Variable", "Estimate"))
+  ftable <- addHeaderRow( ftable, value = c("Variable","Coefficient", "Std. Error"))
+  ftable <- setFlexTableWidths(ftable,widths = c(2, 1.5, 1.5))
+  ftable
+}
+
+# create flextable of coefficients from enet without errors
+FlexTable.enet.coef <- function(beta.hat.scaled) {
+  
+  data <- as.matrix(beta.hat.scaled$coefficients)
+  
+  # format the data values
+  data <- formatC(data, digits = 3, format = "f", flag = "0")
+  
+  # create an empty FlexTable
+  ftable <- FlexTable(data, header.columns=FALSE,add.rownames = TRUE,
+                      body.par.props = parRight(),
+                      header.text.props = textBold())
+  ftable <- addHeaderRow( ftable, value = c("Variable", "Estimate"))
+  ftable <- setFlexTableWidths(ftable,widths = c(2, 1.5))
+  ftable
 }
 
 
+# create a FlexTable of ANOVA results for 2 model comparision
+FlexTable.2mod.anova <- function(mod1,mod2){
+  #assuming mod1 is a subset of mod2
+  comp.models <- anova(mod1,mod2)
+  data <- as.matrix(comp.models)
+  ftable <- FlexTable(data, add.rownames = TRUE, body.par.props = parRight(),
+                      header.text.props = textBold())
+  ftable <- setFlexTableWidths(ftable,widths = c(1.3, 0.5, 1.0, 1.0, 1.0, 1.0,1.0))
+                                
+}
+
+# create flextable for single model anova results
+FlexTable.anova <- function(model){
+  data <- as.matrix(anova(model))
+  # format the data values
+  data <- formatC(data, digits = 3, format = "f", flag = "0")
+  # format the data values
+  #data[, 2] <- formatC( data[, 2], digits=0, format = "d")
+  #data[, 2] <- formatC( data[, 2], digits=2, format = "d")
+  #data[, 3] <- formatC( data[, 3], digits=3, format = "f")
+  
+  ftable <- FlexTable(data,add.rownames = TRUE,body.par.props = parRight(),
+                      header.text.props = textBold())
+  ftable <- setFlexTableWidths(ftable,widths = c(1.3, 1.0, 1.0, 1.0, 1.0, 1.0))
+  
+}
+
+# create a FlexTable of predicted value and prediction error
+FlexTable.predict <- function(value,error){
+  data <- as.matrix(cbind(value,error))
+  data <- formatC(data, digits = 1, format = "f", flag = "0")
+  ftable <- FlexTable(data,header.columns=FALSE, add.rownames = FALSE,body.par.props = parRight(),
+                      header.text.props = textBold())
+  ftable <- addHeaderRow( ftable, value = c("Predicted Value", "Prediction Error"))
+  ftable <- setFlexTableWidths(ftable,widths = c(1.5,1.5))
+  
+  
+}
+
 # create a FlexTable of quality statistics from a Linear Model
-FlexTable.lm.quality <- function(datalm) {
-  datasum = summary(datalm)
+FlexTable.lm.quality <- function(mod.ols) {
+  datasum = summary(mod.ols)
   datasum$pstatistic=1-pf(datasum$fstatistic[1],datasum$fstatistic[2],datasum$fstatistic[3])
   
   datasum$FString=paste0(paste(c("F =","on", "and"),datasum$fstatistic,collapse=" ")," DF")
@@ -85,19 +151,8 @@ FlexTable.lm.quality <- function(datalm) {
             paste("p =",datasum$pstatistic,datasum$FPcode,sep=" "),
             paste0(datasum$df,sep=" ",collapse = "")),
     stringsAsFactors=FALSE)
-  FlexTable(quality,body.par.props = parRight(),header.text.props = textBold())
+    ftable <- FlexTable(quality,body.par.props = parRight(),header.text.props = textBold())
+    ftable <- setFlexTableWidths(ftable,widths = c(2, 3.5))
 }
 
-
-FlexTable.gc <- function(datagc,xnames) {
-  n = nrow(datagc)
-  c0=round(as.vector(datagc),3)
-  data= data.frame(dimnames(koala.min.coef)[1], Vals=c0)
-  ftable = FlexTable(data,header.columns=FALSE,add.rownames = FALSE,
-                     body.par.props = parRight(),
-                     header.text.props = textBold())
-  ftable = addHeaderRow( ftable, value = c("", "Value") )
-  
-  
-}
 

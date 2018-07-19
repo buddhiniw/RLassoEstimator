@@ -34,7 +34,7 @@ print(args)
 
 # Remove comment from the start of next line to run in RStudio
 # Change file name as neccessary
-args[1]="ason1.csv"
+args[1]="AptDataSet.csv"
 #args[1]="Dataset7Obs.csv"
 
 # Get the input data file name
@@ -92,6 +92,7 @@ y <- as.matrix(y.scaled)
 dataIn.scaled.test <- x.scaled[nrow(x.scaled),]
 x.test <-as.matrix(dataIn.scaled.test)
 
+
 ###################################################################
 # Use caret package to train the glmnet model to get the 
 # best parameter values for alpha and lambda
@@ -100,9 +101,6 @@ x.test <-as.matrix(dataIn.scaled.test)
 # Set alpha and lambda grid
 lambda.grid <- 10^seq(2,-2,length=100)
 alpha.grid <- seq(0,1,length=10)
-
-# Setup leave-one-out-cross-validation method for train function. 
-train.control = trainControl(method = "LOOCV", number = 10, repeats=1)
 
 # Setup serach grid for alpha and lambda
 search.grid <- expand.grid(.alpha = alpha.grid, .lambda = lambda.grid)
@@ -117,10 +115,13 @@ y.name=names(dataIn)[1]
 x.names=names(dataIn)[-1]
 formula.lm = paste(y.name,paste0(x.names,collapse=' + '),sep=' ~ ')
 
+# Setup leave-one-out-cross-validation method for train function. 
+train.control = trainControl(method = "LOOCV", number = 50)
+
 # perfrom cross-validated forecasting of SellingPrice using all features
 set.seed(42)
-train.elnet = train(
-    x.scaled[1:(nrow(x.scaled)-1),], y.scaled[[1]],
+train.enet = train(
+  x.scaled[1:(nrow(x.scaled)-1),], y.scaled[[1]],
     method = "glmnet",
     tuneGrid = search.grid,
     trControl = train.control
@@ -128,50 +129,61 @@ train.elnet = train(
 
 
 # Plot CV performance
-#plot(train.elnet)
+#plot(train.enet)
 
 # Retrun best tuning parameters lambda and alpha
-best.alpha <- train.elnet$bestTune$alpha
-best.lambda <- train.elnet$bestTune$lambda
+best.alpha <- train.enet$bestTune$alpha
+best.lambda <- train.enet$bestTune$lambda
+
+
+# Get model prediction error(RMSE) from the best tune
+best = which(rownames(train.enet$results) == rownames(train.enet$bestTune))
+best.result = train.enet$results[best, ]
+rownames(best.result) = NULL
+prediction.error <- best.result$RMSE
+prediction.rsquared <-best.result$Rsquared
 
 # Get the best model (model with best alpha)
-final.glmnet.model <- train.elnet$finalModel
+final.enet.model <- train.enet$finalModel
 
 # Get the model coefficients at optimal lambda (lambda min)
-beta.hat.glmnet.scaled <- coef(final.glmnet.model, s=best.lambda)
+beta.hat.enet.scaled <- coef(final.enet.model, s=best.lambda)
+
+
 
 ###################################################################
 # Make predictions using the final model selected by caret
 ###################################################################
-y.hat.glmnet.scaled <- predict(final.glmnet.model,x.test,s=best.lambda)
+y.hat.enet.scaled <- predict(final.enet.model,x.test,s=best.lambda)
 # Unscale to get the actual magnitude
-y.hat.glmnet.unscaled <- unscale(y.hat.glmnet.scaled,dataIn.y.scaled)
-
-# The prediction errors are the averages of the cross-validated errors
+y.hat.enet.unscaled <- unscale(y.hat.enet.scaled,dataIn.y.scaled)
 
 
 ###################################################################
 # Estimate starndard errors of coefficients using bootstrap method
 ###################################################################
-# NOTE bootstrapping is the only real way to estimate the std. errors 
-# for a penalized regression. 
-# BUT it is unclear how meaningful the std. errors are in this case. 
+# NOTE bootstrapping is the only real way to estimate the std. errors
+# for a penalized regression.
+# BUT it is unclear how meaningful the std. errors are in this case.
 
 
-test <- function(data, idx){
+do.bootstrap <- function(data, idx){
     bootstrap.data <- data[idx, ]
-    bootstrap.mod <- train(SellingPrice ~.,
-                      data = bootstrap.data, 
-                      method = "glmnet", 
+    bootstrap.mod <- train(LnSalePrice ~.,
+                      data = bootstrap.data,
+                      method = "glmnet",
                       trControl = trainControl(method = "none"),
-                      tuneGrid = train.elnet$bestTune)
-  
-    as.vector(coef(bootstrap.mod$finalModel, train.elnet$bestTune$lambda))
+                      tuneGrid = train.enet$bestTune)
+
+    as.vector(coef(bootstrap.mod$finalModel, train.enet$bestTune$lambda))
 }
 
-boot.samples <- boot(dataIn.scaled, test, R=10)
+boot.samples <- boot(dataIn.scaled, do.bootstrap, R=2)
 
 #########################################
+
+
+
 
 source("BEDROCK-HELP-FUNC.R")
 source("BEDROCK-DOC.R")
