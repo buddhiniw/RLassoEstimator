@@ -1,8 +1,10 @@
-#  RLassoEstimator
-#  This is an R code to do Lasso on real-estate data using the glmnet package
+#  RealEstatePricePredictor
+#  A tool used for real estate price prediction using elastic net regression
 # 
-#  Reference - "Fitting the Lasso Estimator using R" by Finch, W. Holmes; Finch, Maria E. Hernandez
-#  Practical Assessment, Research & Evaluation, 
-#  v21 n7 May 2016
-#  Author - B. Waidyawansa 
+#  Reference - "Regularization and variable selection via the
+elastic net"Fitting the Lasso Estimator using R" by Hui Zou and Trevor Hastie
+#  J. R. Statist. Soc. B (2005) 67 , Part 2 , pp. 301–320
+#  
+#
+#  R code author - B. Waidyawansa 
 #  Date - 04-30-2018
