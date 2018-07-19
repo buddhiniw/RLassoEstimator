@@ -113,13 +113,13 @@ FlexTable.anova <- function(model){
 }
 
 # create a FlexTable of predicted value and prediction error
-FlexTable.predict <- function(value,error){
-  data <- as.matrix(cbind(value,error))
-  data <- formatC(data, digits = 1, format = "f", flag = "0")
+FlexTable.predict <- function(value,error, r2){
+  data <- as.matrix(cbind(value,error,r2))
+  data <- formatC(data, digits = 3, format = "f", flag = "0")
   ftable <- FlexTable(data,header.columns=FALSE, add.rownames = FALSE,body.par.props = parRight(),
                       header.text.props = textBold())
-  ftable <- addHeaderRow( ftable, value = c("Predicted Value", "Prediction Error"))
-  ftable <- setFlexTableWidths(ftable,widths = c(1.5,1.5))
+  ftable <- addHeaderRow( ftable, value = c("Predicted Value", "Prediction Error", "R2"))
+  ftable <- setFlexTableWidths(ftable,widths = c(1.5,1.5,1.5))
   
   
 }

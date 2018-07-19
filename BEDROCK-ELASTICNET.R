@@ -5,7 +5,7 @@
 #  Reference analysis - "Fitting the Lasso Estimator using R" by Finch, W. Holmes; Finch, Maria E. Hernandez
 #  Practical Assessment, Research & Evaluation, 
 #  v21 n7 May 2016
-#  Reference methodolo
+#  Reference methodology
 #  
 #  R script author - B. Waidyawansa (04/30/2018)
 #############################

@@ -141,7 +141,7 @@ doc <- addParagraph( doc, " NOTE std. errors are calculated using bootstrapping 
 ################ MODEL PREDICTION ################
 print('Price Prediction')
 doc <- addTitle( doc, value = "Model Prediction",level=2)
-FTable.predict <- FlexTable.predict(y.hat.enet.unscaled,prediction.error)
+FTable.predict <- FlexTable.predict(y.hat.enet.unscaled,prediction.error, prediction.rsquared)
 doc <- addFlexTable( doc, FTable.predict )
 
 
