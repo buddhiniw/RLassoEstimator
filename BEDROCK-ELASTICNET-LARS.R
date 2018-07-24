@@ -27,8 +27,6 @@ args <- commandArgs(TRUE)
 # Test if the input file name is given: if not, return an error
 if (length(args)==0) {
   stop("Correct Usage: Rscript BEDROCK-ELASTICNET_LARS.R <location/data_file_name.csv>", call.=FALSE)
-} else if (length(args)==1) {
-  print(args)
 }
 
 

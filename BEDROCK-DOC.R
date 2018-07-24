@@ -21,8 +21,8 @@ library(xtable)
 ###################################################################
 fileName=gsub(".csv$",".docx",inFileName)
 fileName=gsub("data/","",fileName)
-#outfileName="~/MyWork/Upwork/R_bedrock_gui/RLassoEstimator/elnet-lars-test.docx"
-outfileName=paste("~/MyWork/Upwork/R_bedrock_gui/RLassoEstimator/out/elnet-lars-test-",fileName)
+outfileName=paste("out/elnet-lars-out-",fileName)
+
 # set default font size to 10
 options( "ReporteRs-fontsize" = 10 )
 options( "ReporteRs-default-font" = "Arial" )
