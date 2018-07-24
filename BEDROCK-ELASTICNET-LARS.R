@@ -168,53 +168,6 @@ y.hat.enet.scaled <- predict.enet(final.enet.model,
 # Unscale to get the actual magnitude
 y.hat.enet.unscaled <- unscale(y.hat.enet.scaled$fit,dataIn.y.scaled)
 
-# 
-# 
-# ###################################################################
-# # Estimate starndard errors of coefficients using bootstrap method
-# ###################################################################
-# # NOTE bootstrapping is the only real way to estimate the std. errors 
-# # for a penalized regression. 
-# # BUT it is unclear how meaningful the std. errors are in this case. 
-# 
-# 
-# #The formula used for simple linear regression model 
-# y.name=names(as.data.frame(dataIn.scaled))[1]
-# x.names=names(as.data.frame(dataIn.scaled))[-1]
-# formula.lm = as.formula(paste(y.name,paste0(x.names,collapse=' + '),sep=' ~ '))
-# 
-# # Create a function to return the model coefficients from the final model
-# # using resampling
-# # do.bootstrap <- function(data, idx){
-# #   bootstrap.data <- data[idx, ]
-# #   print(bootstrap.data)
-# #   bootstrap.mod <- train(formula.lm,
-# #                          data = bootstrap.data,
-# #                          method = "enet",
-# #                          tuneGrid = data.frame(fraction= best.fraction,
-# #                                                lambda= best.lambda),
-# #                          trControl = trainControl(method = "none"),
-# #                          metric ="RMSE")
-# # 
-# #   mod.coef <- (predict.enet(bootstrap.mod$finalModel,s=bootstrap.mod$bestTune$fraction,
-# #                          type="coefficient",mode="fraction"))$coefficients
-# #   print((predict.enet(bootstrap.mod$finalModel,s=bootstrap.mod$bestTune$fraction,
-# #                       type="coefficient",mode="fraction"))$coefficients)
-# # 
-# #   print(coef)
-# #   return(coef)
-# # }
-# # 
-# # # Use the boot() function to compute the standard errors of 500 bootstrap estimates 
-# # # for the coefficients
-# # boot.samples <- boot(dataIn.scaled, do.bootstrap, R=3)
-
-
-###################################################################
-# Estimate the p-values using boorstrap
-###################################################################
-# For each coefficient of the model, the null hypothesis is that the coefficient equals 0 
-# and H1 is that it is different to 0 (bilateral test).
 
 #########################################
 source("BEDROCK-HELP-FUNC.R")
